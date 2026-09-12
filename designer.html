@@ -49,7 +49,7 @@ SOFTWARE.
 </style>
 </head>
 <body>
-<h1>Exotherm badge designer <span id="ver" style="font-size:12px;color:#888">v35</span></h1>
+<h1>Exotherm badge designer <span id="ver" style="font-size:12px;color:#888">v36</span></h1>
 
 <fieldset>
   <legend>Content</legend>
@@ -229,6 +229,10 @@ document.querySelectorAll('input[type="color"]').forEach(ci => {
   ci.after(b);
 });
 const human = n => { for (const u of ["", "k", "M"]) { if (n < 1000) return (+n.toFixed(1)) + u; n /= 1000; } return (+n.toFixed(1)) + "B"; };
+async function apiErr(res, fallback) {
+  try { const j = await res.json(); if (j && j.message) return j.message; } catch {}
+  return fallback + res.status;
+}
 
 // preset swatches, click sets background
 ["#3C8527", "#1E4D1A", "#2D2D2D", "#555555", "#0E2F0E", "#1D4ED8", "#B91C1C", "#B45309", "#FFFFFF", "#000000"].forEach(c => {
@@ -672,8 +676,9 @@ $("sendgal").onclick = async () => {
       body: svg
     });
     if (!up.ok) {
-      if (up.status === 401 || up.status === 403) throw new Error("token rejected, check it and its project write scope");
-      throw new Error("upload failed: " + up.status);
+      const why = await apiErr(up, "upload failed: ");
+      if (up.status === 401 || up.status === 403) throw new Error("token rejected, check it and its project write scope (" + why + ")");
+      throw new Error(why);
     }
     let cdn = "";
     try { const j = await up.json(); cdn = j.url || j.raw_url || ""; } catch {}
@@ -717,9 +722,10 @@ $("sendrepo").onclick = async () => {
     if (sha) body.sha = sha;
     const put = await fetch(url, { method: "PUT", headers: { ...head, "Content-Type": "application/json" }, body: JSON.stringify(body) });
     if (!put.ok) {
-      if (put.status === 401 || put.status === 403) throw new Error("token rejected, check it and its Contents write scope");
-      if (put.status === 404) throw new Error("repo or path not found, check both");
-      throw new Error("send failed: " + put.status);
+      const why = await apiErr(put, "send failed: ");
+      if (put.status === 401 || put.status === 403) throw new Error("token rejected, check it and its Contents write scope (" + why + ")");
+      if (put.status === 404) throw new Error("repo or path not found, check both (" + why + ")");
+      throw new Error(why);
     }
     const raw = `https://raw.githubusercontent.com/${repo}/main/${path.split("/").map(encodeURIComponent).join("/")}`;
     const alt = ($("label").value + " " + $("message").value).trim();
