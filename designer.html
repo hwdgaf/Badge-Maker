@@ -1,0 +1,551 @@
+<!--
+MIT License
+
+Copyright (c) 2026 hwdgaf
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Exotherm badge designer</title>
+<style>
+  body { font-family: Verdana, Arial, sans-serif; max-width: 900px; margin: 24px auto; padding: 0 16px; background: #1b1b1b; color: #eee; }
+  h1 { font-size: 20px; }
+  fieldset { border: 1px solid #444; border-radius: 8px; margin: 12px 0; padding: 12px; }
+  legend { padding: 0 6px; }
+  label { display: inline-block; min-width: 130px; margin: 4px 0; }
+  input[type=text] { width: 340px; max-width: 100%; background: #222; color: #eee; border: 1px solid #555; border-radius: 4px; padding: 4px 6px; }
+  input[type=color] { width: 44px; height: 28px; border: 1px solid #555; padding: 0; background: none; vertical-align: middle; }
+  input[type=range] { vertical-align: middle; width: 160px; }
+  select { background: #222; color: #eee; border: 1px solid #555; border-radius: 4px; padding: 4px; }
+  .val { display: inline-block; min-width: 44px; }
+  .swatch { display: inline-block; width: 26px; height: 26px; border-radius: 5px; border: 2px solid transparent; margin: 2px; cursor: pointer; vertical-align: middle; }
+  .swatch.on { border-color: #fff; }
+  #preview { background: repeating-conic-gradient(#bbb 0 25%, #fff 0 50%) 0 0 / 24px 24px; border-radius: 8px; padding: 24px; margin: 12px 0; min-height: 72px; }
+  #preview.dark { background: #222; }
+  textarea { width: 100%; height: 64px; background: #222; color: #eee; border: 1px solid #555; border-radius: 4px; }
+  button { background: #3C8527; color: #fff; border: none; border-radius: 6px; padding: 8px 14px; margin: 4px 4px 4px 0; cursor: pointer; }
+  button.ghost { background: #444; }
+  #msg { color: #e88; min-height: 20px; }
+</style>
+</head>
+<body>
+<h1>Exotherm badge designer <span id="ver" style="font-size:12px;color:#888">v32</span></h1>
+
+<fieldset>
+  <legend>Content</legend>
+  <label>Link target</label><input type="text" id="link" value="https://modrinth.com/mod/fabric-api"><br>
+  <label>Icon URL</label><input type="text" id="icon" size="60" placeholder="https://.../icon.png">
+  <button id="sample">Sample colors</button><br>
+  <label>Icon size</label><input type="checkbox" id="autoicon"> auto
+  <input type="range" id="iconsize" min="12" max="96" step="1" value="50"><span class="val" id="iconsizev">50</span><br>
+  <label>Layout</label><select id="layout"><option value="bar">bar</option><option value="card">card</option></select>
+  <span style="font-size:12px;color:#999">card stacks icon, mod name, then label</span><br>
+  <label>Label</label><input type="text" id="label" value="" placeholder="mod name, filled by autofill"><br>
+  <label>Message</label><input type="text" id="message" value="Required"><br>
+  <label>File name</label><input type="text" id="fname" value="badge" style="width:180px"> .svg<br>
+  <label>SVG base URL</label><input type="text" id="baseurl" size="60" placeholder="https://raw.githubusercontent.com/.../badges (empty keeps it relative)"><br>
+  <label>Modrinth slug or link</label><input type="text" id="slug" placeholder="sodium or https://modrinth.com/mod/..." style="width:280px">
+  <select id="field"><option>version</option><option>downloads</option><option>followers</option></select>
+  <input type="text" id="mc" placeholder="mc e.g. 26.2" style="width:110px">
+  <input type="text" id="loader" placeholder="loader" style="width:90px">
+  <button id="fill">Autofill from slug</button>
+  <div id="msg"></div>
+</fieldset>
+
+<fieldset>
+  <legend>Background</legend>
+  <label>Color</label><input type="color" id="bg" value="#3c8527"><input type="text" id="bghex" value="#3c8527" style="width:80px"><br>
+  <div id="swatches"></div>
+  <div id="cands" style="margin-top:6px"></div><br>
+  <label>Gradient</label><input type="checkbox" id="usegrad">
+  <input type="color" id="gfrom" value="#3c8527"><input type="color" id="gto" value="#1e4d1a">
+  <select id="gdir"><option value="vertical">vertical</option><option value="horizontal">horizontal</option></select>
+  <span style="font-size:12px;color:#999">icon refresh sets border 25% lighter than its dominant color</span><br>
+  <label>Vivid colors</label><input type="checkbox" id="vivid"> <span style="font-size:12px;color:#999">prefer saturated colors over white and gray</span><br>
+  <span style="font-size:12px;color:#999">pure black and white snap to the nearest allowed shade</span>
+</fieldset>
+
+<fieldset>
+  <legend>Border, shape</legend>
+  <label>Border width</label><input type="range" id="bw" min="0" max="6" step="0.5" value="4"><span class="val" id="bwv">4</span><br>
+  <label>Border color</label><input type="color" id="bcol" value="#0e2f0e"><input type="text" id="bcolhex" value="#0e2f0e" style="width:80px"><br>
+  <label>Corner radius</label><input type="range" id="radius" min="0" max="12" step="1" value="12"><span class="val" id="radiusv">12</span><br>
+  <label>Height</label><input type="checkbox" id="autoh" checked> auto
+  <input type="range" id="height" min="16" max="64" step="1" value="32"><span class="val" id="heightv">32</span><br>
+  <label>Width</label><input type="checkbox" id="autow" checked> auto
+  <input type="range" id="fixw" min="60" max="600" step="2" value="200"><span class="val" id="fixwv">200</span><br>
+  <label>Max width</label><input type="range" id="maxw" min="0" max="800" step="10" value="0"><span class="val" id="maxwv">off</span>
+  <span style="font-size:12px;color:#999">0 is off, longer text trims with …</span>
+</fieldset>
+
+<fieldset>
+  <legend>Label text</legend>
+  <label>Font</label><select id="lfont" class="fontsel"></select><br>
+  <label>Size</label><input type="range" id="lsize" min="8" max="32" step="1" value="20"><span class="val" id="lsizev">20</span>
+  <input type="checkbox" id="lbold" checked> bold <input type="checkbox" id="litalic"> italic<br>
+  <label>Color</label><input type="color" id="lcol" value="#ffffff"><input type="text" id="lcolhex" value="#ffffff" style="width:80px"><br>
+</fieldset>
+
+<fieldset>
+  <legend>Mod name text</legend>
+  <label>Font</label><select id="mfont" class="fontsel"></select><br>
+  <label>Size</label><input type="range" id="msize" min="8" max="32" step="1" value="18"><span class="val" id="msizev">18</span>
+  <input type="checkbox" id="mbold"> bold <input type="checkbox" id="mitalic"> italic<br>
+  <label>Color</label><input type="color" id="mcol" value="#ffffff"><input type="text" id="mcolhex" value="#ffffff" style="width:80px"><br>
+</fieldset>
+
+<fieldset>
+  <legend>Text extras</legend>
+  <label>Stroke width</label><input type="range" id="sw" min="0" max="2" step="0.1" value="0"><span class="val" id="swv">0</span><br>
+  <label>Stroke color</label><input type="color" id="scol" value="#000000"><input type="text" id="scolhex" value="#000000" style="width:80px"><br>
+  <label>Upload font</label><input type="file" id="fontfile" accept=".ttf,.otf,.woff,.woff2"> <input type="checkbox" id="embedfont" checked> embed in SVG<br>
+  <label>Webfonts</label><input type="text" id="wfontq" placeholder="search 2000+ open fonts" style="width:200px">
+  <select id="wfontres" style="max-width:220px"></select>
+  <select id="wfonttarget"><option value="m">Mod name</option><option value="l">Label</option><option value="b">Both</option></select>
+  <button id="wfontgo">Fetch</button><br>
+  <label>Pixel-crisp text</label><input type="checkbox" id="crisp"> <span style="font-size:12px;color:#999">kills smoothing, for pixel fonts like Minecraft. System fonts need no embed, uploads travel only if embedded.</span>
+</fieldset>
+
+<button id="darkprev" class="ghost">Toggle preview background</button>
+
+<fieldset>
+  <legend>Position</legend>
+  <label>Icon X</label><input type="range" id="ix" min="-60" max="60" step="1" value="0"><span class="val" id="ixv">0</span><br>
+  <label>Icon Y</label><input type="range" id="iy" min="-60" max="60" step="1" value="0"><span class="val" id="iyv">0</span><br>
+  <label>Text X</label><input type="range" id="txx" min="-60" max="60" step="1" value="0"><span class="val" id="txv">0</span><br>
+  <label>Text Y</label><input type="range" id="tyy" min="-60" max="60" step="1" value="0"><span class="val" id="tyv">0</span>
+  <span style="font-size:12px;color:#999">nudges in px, background does not follow</span>
+</fieldset>
+<div id="preview"></div>
+<label>Markdown</label>
+<textarea id="md" readonly></textarea><br>
+<button id="copymd">Copy markdown</button>
+<button id="copysvg">Copy SVG</button>
+<button id="dl">Download SVG</button>
+
+<script>
+const $ = id => document.getElementById(id);
+let lastBg = $("bg").value;
+const customFonts = {};
+$("fontfile").onchange = () => {
+  const f = $("fontfile").files[0];
+  if (!f) return;
+  const name = f.name.replace(/\.[^.]+$/, "");
+  const r = new FileReader();
+  r.onload = () => {
+    customFonts[name] = r.result;
+    const st = document.createElement("style");
+    st.textContent = `@font-face{font-family:"${name}";src:url(${r.result});}`;
+    document.head.appendChild(st);
+    const o = document.createElement("option");
+    o.textContent = name;
+    document.querySelectorAll(".fontsel").forEach(sel => sel.appendChild(o.cloneNode(true)));
+    $("mfont").value = name;
+    draw();
+  };
+  r.readAsDataURL(f);
+};
+const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const FONTS = {
+  "Renders everywhere": ["Verdana", "Arial", "Georgia", "Times New Roman", "Courier New", "Trebuchet MS", "Impact", "Comic Sans MS"],
+  "This PC only, upload and embed to travel": ["Tahoma", "Segoe UI", "Calibri", "Cambria", "Consolas", "Century Gothic", "Franklin Gothic Medium", "Gill Sans MT", "Lucida Sans", "Palatino Linotype", "Rockwell", "Cooper Black", "Bahnschrift", "Candara", "Constantia", "Corbel", "Ebrima", "Gabriola", "Leelawadee UI", "Malgun Gothic", "Microsoft YaHei UI", "Sitka Text", "Yu Gothic UI", "Minecraft"]
+};
+document.querySelectorAll(".fontsel").forEach(sel => {
+  for (const [grp, names] of Object.entries(FONTS)) {
+    const og = document.createElement("optgroup");
+    og.label = grp;
+    names.forEach(n => { const o = document.createElement("option"); o.textContent = n; og.appendChild(o); });
+    sel.appendChild(og);
+  }
+  sel.value = "Arial";
+});
+async function pickFor(c, h) {
+  if (!window.EyeDropper) { $("msg").style.color = "#e88"; $("msg").textContent = "eyedropper needs Chrome or Edge"; return; }
+  try {
+    const r = await new EyeDropper().open();
+    $(c).value = r.sRGBHex;
+    if (h && $(h)) $(h).value = r.sRGBHex;
+    draw();
+  } catch { /* cancelled, stay silent */ }
+}
+document.querySelectorAll('input[type="color"]').forEach(ci => {
+  const b = document.createElement("button");
+  b.textContent = "pick";
+  b.className = "ghost";
+  b.style.padding = "4px 8px";
+  b.onclick = () => pickFor(ci.id, ci.id + "hex");
+  ci.after(b);
+});
+const human = n => { for (const u of ["", "k", "M"]) { if (n < 1000) return (+n.toFixed(1)) + u; n /= 1000; } return (+n.toFixed(1)) + "B"; };
+
+// preset swatches, click sets background
+["#3C8527", "#1E4D1A", "#2D2D2D", "#555555", "#0E2F0E", "#1D4ED8", "#B91C1C", "#B45309", "#FFFFFF", "#000000"].forEach(c => {
+  const d = document.createElement("span");
+  d.className = "swatch"; d.style.background = c; d.title = c;
+  d.onclick = () => { $("bg").value = c; $("bghex").value = c; document.querySelectorAll(".swatch").forEach(s => s.classList.remove("on")); d.classList.add("on"); draw(); };
+  $("swatches").appendChild(d);
+});
+
+function pair(colorEl, hexEl) {
+  $(colorEl).oninput = () => { $(hexEl).value = $(colorEl).value; draw(); };
+  $(hexEl).oninput = () => { if (/^#[0-9a-fA-F]{6}$/.test($(hexEl).value)) { $(colorEl).value = $(hexEl).value; draw(); } };
+}
+pair("bg", "bghex"); pair("bcol", "bcolhex"); pair("mcol", "mcolhex"); pair("lcol", "lcolhex"); pair("scol", "scolhex");
+
+function draw() {
+  const label = $("label").value, message = $("message").value;
+  const icon = $("icon").value.trim();
+  const sliderH = +$("height").value;
+  const autoH = $("autoh").checked;
+  const mFont = $("mfont").value, mSize = +$("msize").value, mCol = $("mcol").value.slice(1);
+  const mBold = $("mbold").checked, mIt = $("mitalic").checked;
+  const lFont = $("lfont").value, lSize = +$("lsize").value, lCol = $("lcol").value.slice(1);
+  const lBold = $("lbold").checked, lIt = $("litalic").checked;
+  const scol = $("scol").value.slice(1), sw = +$("sw").value;
+  const bw = +$("bw").value, bcol = $("bcol").value.slice(1), radius = +$("radius").value;
+  $("bwv").textContent = bw; $("radiusv").textContent = radius; $("heightv").textContent = sliderH;
+  $("msizev").textContent = mSize; $("lsizev").textContent = lSize; $("swv").textContent = sw;
+  const ix = +$("ix").value, iy = +$("iy").value, tX = +$("txx").value, tY = +$("tyy").value;
+  $("ixv").textContent = ix; $("iyv").textContent = iy; $("txv").textContent = tX; $("tyv").textContent = tY;
+  const meas = (() => { try { return document.createElement("canvas").getContext("2d"); } catch { return null; } })();
+  const tw = (t, f, s, b, i) => {
+    if (meas) { try { meas.font = `${i ? "italic " : ""}${b ? "bold " : ""}${s}px "${f}", sans-serif`; const v = meas.measureText(t).width; if (v > 0) return v + 14; } catch {} }
+    return t.length * s * 0.56 + 14;
+  };
+  const wM = t => tw(t, mFont, mSize, mBold, mIt);
+  const wL = t => tw(t, lFont, lSize, lBold, lIt);
+  const fa = (f, s, c, b, i) => ` font-family="${f},DejaVu Sans,sans-serif" font-size="${s}" fill="#${c}"${b ? ' font-weight="bold"' : ""}${i ? ' font-style="italic"' : ""}${$("crisp").checked ? ' shape-rendering="crispEdges"' : ""}`;
+  const face = f => (customFonts[f] && $("embedfont").checked) ? `@font-face{font-family:"${f}";src:url(${customFonts[f]});}` : "";
+  const card = $("layout").value === "card";
+  $("iconsizev").textContent = $("iconsize").value;
+  const maxSize = Math.max(message ? mSize : 0, label ? lSize : 0);
+  const textH = Math.ceil(maxSize * 1.3 + 8);
+  const side = icon ? ($("autoicon").checked ? (card ? 48 : (autoH ? Math.max(textH - 8, 12) : sliderH - 8)) : +$("iconsize").value) : 0;
+  let H = sliderH;
+  if (autoH && !card) H = Math.max(textH, side ? side + 16 : 0, 16) + bw * 2;
+  $("heightv").textContent = H;
+  const pad = 10, gap = 10;
+  const crisp = $("crisp").checked ? ";shape-rendering:crispEdges" : "";
+  let lab = label, msg = message, total, svgH = H, retotal;
+  if (card) {
+    retotal = () => Math.ceil(Math.max(side, msg ? wM(msg) : 0, lab ? wL(lab) : 0) + pad * 2 + bw * 2);
+  } else {
+    retotal = () => {
+      let t = pad + side + (icon && (lab || msg) ? gap : 0);
+      if (lab) t += wL(lab);
+      if (msg) t += wM(msg);
+      if (lab && msg) t += gap + 1;
+      return Math.round(t + pad + bw * 2);
+    };
+  }
+  total = retotal();
+  const maxw = +$("maxw").value;
+  $("fixwv").textContent = $("fixw").value;
+  $("maxwv").textContent = maxw > 0 ? maxw : "off";
+  const limit = !$("autow").checked ? +$("fixw").value : (maxw > 0 ? maxw : Infinity);
+  if (total > limit) {
+    let guard = 500;
+    while (total > limit - 12 && guard-- > 0) {
+      const wm = msg ? tw(msg, mFont, mSize, mBold, mIt) : -1;
+      const wl = lab ? tw(lab, lFont, lSize, lBold, lIt) : -1;
+      if (wm < 20 && wl < 20) break;
+      if (wm >= wl && msg.length > 1) msg = msg.slice(0, -1);
+      else if (lab.length > 1) lab = lab.slice(0, -1);
+      else if (msg.length > 1) msg = msg.slice(0, -1);
+      else break;
+      total = retotal();
+    }
+    if (msg !== message) msg += "…";
+    if (lab !== label) lab += "…";
+    total = retotal();
+  }
+  if (!$("autow").checked) total = Math.max(total, +$("fixw").value);
+  if (card) {
+    const rows = (side ? side + gap : 0) + (msg ? mSize * 1.25 : 0) + (msg && lab ? 4 : 0) + (lab ? lSize * 1.25 : 0);
+    svgH = Math.ceil(rows + pad * 2 + bw * 2);
+  }
+  let x = pad + bw + side + (side && (label || message) ? gap : 0), s = "";
+  const clampFill = hex => {
+    const v = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+    if (v.some(isNaN)) return hex;
+    const L = 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
+    if (L >= 32 && L <= 224) return hex;
+    if (L <= 0) return "#202020";
+    const f = L < 32 ? 32 / L : 224 / L;
+    return "#" + v.map(c => Math.round(Math.min(255, c * f)).toString(16).padStart(2, "0")).join("");
+  };
+  const snap = (id, hexId) => {
+    const cur = $(id).value, next = clampFill(cur);
+    if (next !== cur) { $(id).value = next; if (hexId) $(hexId).value = next; }
+    return next;
+  };
+  const bgc = snap("bg", "bghex"), gA = snap("gfrom"), gB = snap("gto");
+  if (bgc !== lastBg) {
+    lastBg = bgc;
+    const v = [1, 3, 5].map(i => parseInt(bgc.slice(i, i + 2), 16));
+    const inv = v.map(c => 255 - c);
+    const rl = c => { const s = c.map(x => { x /= 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); }); return 0.2126 * s[0] + 0.7152 * s[1] + 0.0722 * s[2]; };
+    const x = rl(v), y = rl(inv);
+    const ratio = (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+    const tc = ratio >= 3 ? "#" + inv.map(c => c.toString(16).padStart(2, "0")).join("") : ((0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]) > 150 ? "#1a1a1a" : "#ffffff");
+    for (const [c, h] of [["mcol", "mcolhex"], ["lcol", "lcolhex"]]) { $(c).value = tc; if ($(h)) $(h).value = tc; }
+  }
+  if ($("usegrad").checked) {
+    const horiz = $("gdir").value === "horizontal";
+    s += `<defs><linearGradient id="g" x1="0" y1="0" x2="${horiz ? "100%" : "0"}" y2="${horiz ? "0" : "100%"}"><stop offset="0" stop-color="${gA}"/><stop offset="1" stop-color="${gB}"/></linearGradient></defs>`;
+  }
+  const fill = $("usegrad").checked ? "url(#g)" : bgc;
+  const st = sw > 0 ? ` paint-order="stroke" stroke="#${scol}" stroke-width="${sw}"` : "";
+  const alt = esc((label + " " + message).trim());
+  let g = `<rect x="${bw / 2}" y="${bw / 2}" width="${total - bw}" height="${svgH - bw}" rx="${radius}" fill="${fill}"${bw > 0 ? ` stroke="#${bcol}" stroke-width="${bw}"` : ""}/>`;
+  if (card) {
+    let y = pad + bw;
+    if (side) { g += `<image x="${((total - side) / 2 + ix).toFixed(1)}" y="${(y + iy).toFixed(1)}" width="${side}" height="${side}" href="${esc(icon)}" alt="${alt}"/>`; y += side + gap; }
+    if (msg) { g += `<text x="${total / 2 + tX}" y="${(y + mSize + tY).toFixed(1)}" text-anchor="middle"${fa(mFont, mSize, mCol, mBold, mIt)}${st}>${esc(msg)}</text>`; y += mSize * 1.25 + 4; }
+    if (lab) g += `<text x="${total / 2 + tX}" y="${(y + lSize + tY).toFixed(1)}" text-anchor="middle"${fa(lFont, lSize, lCol, lBold, lIt)}${st}>${esc(lab)}</text>`;
+  } else {
+    let x = pad + bw + side + (side && (label || message) ? gap : 0);
+    if (side) g += `<image x="${pad + bw + ix}" y="${((H - side) / 2 + iy).toFixed(1)}" width="${side}" height="${side}" href="${esc(icon)}" alt="${alt}"/>`;
+    const tyB = H / 2 + tY;
+    if (lab) { g += `<text x="${(x + tX).toFixed(1)}" y="${(tyB + lSize * 0.35).toFixed(1)}"${fa(lFont, lSize, lCol, lBold, lIt)}${st}>${esc(lab)}</text>`; x += wL(lab) + gap; }
+    if (msg) g += `<text x="${(x + tX).toFixed(1)}" y="${(tyB + mSize * 0.35).toFixed(1)}"${fa(mFont, mSize, mCol, mBold, mIt)}${st}>${esc(msg)}</text>`;
+  }
+  const faces = face(mFont) + face(lFont);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${total}" height="${svgH}" role="img" aria-label="${esc((label + ": " + message).replace(/^: |: $/g, ""))}">${s}<g>${g}</g>${faces ? `<style>${faces}</style>` : ""}</svg>`;
+  $("preview").innerHTML = svg;
+  const base = $("baseurl").value.trim().replace(/\/+$/, "");
+  const src = ($("fname").value || "badge") + ".svg";
+  $("md").value = `[![${(label + " " + message).trim()}](${base ? base + "/" + src : src})](${$("link").value})`;
+  return svg;
+}
+document.querySelectorAll("input,select").forEach(el => el.addEventListener("input", draw));
+
+// dominant colors out of the icon URL straight into the vertical gradient
+let iconTimer;
+$("icon").addEventListener("input", () => { clearTimeout(iconTimer); iconTimer = setTimeout(inheritColors, 600); });
+$("vivid").addEventListener("input", () => { if ($("icon").value.trim()) inheritColors(); });
+let fontCatalog = null, wfontTimer;
+async function webfontSearch() {
+  const q = $("wfontq").value.trim().toLowerCase();
+  if (!fontCatalog) {
+    try {
+      const r = await (await fetch("https://api.fontsource.org/fontlist?family")).json();
+      fontCatalog = Object.entries(r).filter(([, v]) => typeof v === "string").map(([id, family]) => ({ id, family }));
+    } catch { $("msg").style.color = "#e88"; $("msg").textContent = "font catalog would not load"; return; }
+  }
+  const hits = fontCatalog.filter(f => !q || f.family.toLowerCase().includes(q)).slice(0, 30);
+  const sel = $("wfontres");
+  sel.innerHTML = "";
+  if (!hits.length) sel.appendChild(new Option("no matches", ""));
+  hits.forEach(f => sel.appendChild(new Option(f.family, f.id)));
+}
+$("wfontq").addEventListener("input", () => { clearTimeout(wfontTimer); wfontTimer = setTimeout(webfontSearch, 400); });
+$("wfontgo").onclick = async () => {
+  const id = $("wfontres").value;
+  if (!id) return;
+  $("msg").style.color = "#8e8";
+  $("msg").textContent = "fetching webfont…";
+  try {
+    const meta = await (await fetch("https://api.fontsource.org/v1/fonts/" + id)).json();
+    const files = [];
+    (function walk(o, path) {
+      if (!o || typeof o !== "object") return;
+      if (typeof o.woff2 === "string") files.push({ url: o.woff2, path });
+      else for (const k of Object.keys(o)) walk(o[k], [...path, k]);
+    })(meta, []);
+    if (!files.length) throw 0;
+    const score = f => {
+      const w = parseInt(f.path.find(p => /^\d+$/.test(p)) || "400", 10);
+      let s = Math.abs(w - 400);
+      if (!f.path.includes("latin")) s += 1000;
+      if (!f.path.includes("normal")) s += 100;
+      return s;
+    };
+    files.sort((a, b) => score(a) - score(b));
+    const blob = await (await fetch(files[0].url)).blob();
+    const dataUrl = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(blob); });
+    const family = meta.family || id;
+    customFonts[family] = dataUrl;
+    const st = document.createElement("style");
+    st.textContent = `@font-face{font-family:"${family}";src:url(${dataUrl});}`;
+    document.head.appendChild(st);
+    document.querySelectorAll(".fontsel").forEach(sel => sel.appendChild(new Option(family, family)));
+    const t = $("wfonttarget").value;
+    if (t === "m" || t === "b") $("mfont").value = family;
+    if (t === "l" || t === "b") $("lfont").value = family;
+    $("msg").style.color = "#8e8";
+    $("msg").textContent = "webfont ready: " + family + " (open license, embeds cleanly)";
+    draw();
+  } catch { $("msg").style.color = "#e88"; $("msg").textContent = "webfont fetch failed"; }
+};
+function shade(hex, t) {
+  return "#" + [1, 3, 5].map(i => { const v = parseInt(hex.slice(i, i + 2), 16); const n = t >= 0 ? v + (255 - v) * t : v * (1 + t); return Math.round(Math.min(255, Math.max(0, n))).toString(16).padStart(2, "0"); }).join("");
+}
+function applyAutoColors(hex, silent) {
+  $("bg").value = hex;
+  $("bghex").value = hex;
+  const v = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+  const lum = 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
+  const bl = lum > 150 ? shade(hex, -0.25) : shade(hex, 0.25);
+  $("bcol").value = bl;
+  $("bcolhex").value = bl;
+  if (!silent) { $("msg").style.color = "#8e8"; $("msg").textContent = "colors sampled from icon"; }
+  draw();
+}
+function renderCands(cands) {
+  const box = $("cands");
+  box.innerHTML = "";
+  cands.forEach(c => {
+    const d = document.createElement("span");
+    d.className = "swatch";
+    d.style.background = c.hex;
+    d.title = `${c.hex} (${c.n}px)`;
+    d.onclick = () => applyAutoColors(c.hex);
+    box.appendChild(d);
+  });
+}
+function inheritColors() {
+  const url = $("icon").value.trim();
+  if (!url) { $("msg").style.color = "#e88"; $("msg").textContent = "icon URL is empty, nothing to sample"; return; }
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  img.onload = () => {
+    try {
+      const S = 48, c = document.createElement("canvas");
+      c.width = S; c.height = S;
+      const ctx = c.getContext("2d", { willReadFrequently: true });
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, S, S);
+      ctx.drawImage(img, 0, 0, S, S);
+      const d = ctx.getImageData(0, 0, S, S).data, cells = {};
+      for (let i = 0; i < d.length; i += 4) {
+        if (d[i + 3] < 128) continue;
+        const k = ((d[i] >> 4) << 8) | ((d[i + 1] >> 4) << 4) | (d[i + 2] >> 4);
+        const c = cells[k] || (cells[k] = { n: 0, r: 0, g: 0, b: 0 });
+        c.n++; c.r += d[i]; c.g += d[i + 1]; c.b += d[i + 2];
+      }
+      const list = Object.values(cells).map(c => {
+        const r = Math.round(c.r / c.n), g = Math.round(c.g / c.n), b = Math.round(c.b / c.n);
+        const mx = Math.max(r, g, b) / 255, mn = Math.min(r, g, b) / 255;
+        return { hex: "#" + [r, g, b].map(v => v.toString(16).padStart(2, "0")).join(""), n: c.n, sat: mx === 0 ? 0 : (mx - mn) / mx };
+      });
+      if (!list.length) { $("msg").style.color = "#e88"; $("msg").textContent = "icon pixels came back empty, a canvas blocker or private mode may be eating them"; return; }
+      const pop = [...list].sort((a, b) => b.n - a.n);
+      const first = ($("vivid").checked ? [...list].sort((a, b) => (b.n * (0.3 + b.sat)) - (a.n * (0.3 + a.sat))) : pop)[0];
+      const cands = [];
+      for (const c of pop) {
+        if (cands.length >= 6) break;
+        const ok = cands.every(o => {
+          const a = [1, 3, 5].map(i => parseInt(c.hex.slice(i, i + 2), 16));
+          const e = [1, 3, 5].map(i => parseInt(o.hex.slice(i, i + 2), 16));
+          return Math.hypot(a[0] - e[0], a[1] - e[1], a[2] - e[2]) >= 60;
+        });
+        if (ok) cands.push(c);
+      }
+      renderCands(cands);
+      $("gdir").value = "vertical";
+      $("gfrom").value = first.hex;
+      $("gto").value = first.hex;
+      applyAutoColors(first.hex, true);
+      $("msg").style.color = "#8e8";
+      $("msg").textContent = "colors sampled from icon";
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => draw());
+draw();
+    } catch (e) { $("msg").style.color = "#e88"; $("msg").textContent = "color read failed: " + (e && e.message ? e.message : e); }
+  };
+  img.onerror = () => { $("msg").style.color = "#e88"; $("msg").textContent = "icon image would not load, check the URL"; };
+  img.src = url;
+}
+$("sample").onclick = () => inheritColors();
+
+let fillTimer;
+function pastedLink() {
+  clearTimeout(fillTimer);
+  if (/modrinth\.com\/mod\/[^/?#]+/.test($("slug").value + " " + $("link").value)) {
+    fillTimer = setTimeout(autofill, 800);
+  }
+}
+$("slug").addEventListener("input", pastedLink);
+$("link").addEventListener("input", pastedLink);
+$("fill").onclick = autofill;
+async function autofill() {
+  let slug = $("slug").value.trim();
+  if (!slug) {
+    const lm = $("link").value.trim().match(/modrinth\.com\/mod\/([^/?#]+)/);
+    if (lm) slug = lm[1];
+  }
+  const m = slug.match(/modrinth\.com\/mod\/([^/?#]+)/);
+  if (m) slug = m[1];
+  if (!slug) { $("msg").style.color = "#e88"; $("msg").textContent = "paste a slug or Modrinth link first"; return; }
+  $("msg").textContent = "";
+  $("msg").style.color = "#8e8";
+  try {
+    const p = await (await fetch("https://api.modrinth.com/v2/project/" + slug)).json();
+    if (p.error) throw 0;
+    const f = $("field").value;
+    let suffix = f;
+    if (f === "downloads") { $("message").value = human(p.downloads); if (!$("label").value) $("label").value = "downloads"; }
+    else if (f === "followers") { $("message").value = human(p.followers); if (!$("label").value) $("label").value = "followers"; }
+    else {
+      $("label").value = p.title;
+      if ($("loader").value || $("mc").value) {
+        try {
+          const q = new URLSearchParams();
+          if ($("loader").value) q.set("loaders", JSON.stringify([$("loader").value]));
+          if ($("mc").value) q.set("game_versions", JSON.stringify([$("mc").value]));
+          const vs = await (await fetch(`https://api.modrinth.com/v2/project/${slug}/version?` + q)).json();
+          if (!vs.length) throw 0;
+          $("message").value = vs[0].version_number;
+        } catch { if (!$("message").value) $("message").value = "?"; }
+      } else {
+        $("message").value = "Required";
+        suffix = "required";
+      }
+    }
+    if (!$("link").value) $("link").value = "https://modrinth.com/mod/" + slug;
+    const cur = $("icon").value.trim();
+    if (!cur || cur.includes("cdn.modrinth.com")) {
+      $("icon").value = p.icon_url || (p.id ? `https://cdn.modrinth.com/data/${p.id}/icon.png` : "");
+      inheritColors();
+    } else if (cur) {
+      $("msg").textContent = "filled from " + slug + ", kept your custom icon";
+    }
+    if (!$("msg").textContent) $("msg").textContent = "filled from " + slug;
+    if ($("fname").value === "badge") $("fname").value = slug + "-" + suffix;
+    draw();
+  } catch { $("msg").style.color = "#e88"; $("msg").textContent = "no public Modrinth project called '" + slug + "'"; }
+}
+
+$("darkprev").onclick = () => $("preview").classList.toggle("dark");
+$("copymd").onclick = () => navigator.clipboard.writeText($("md").value);
+$("copysvg").onclick = () => navigator.clipboard.writeText($("preview").innerHTML);
+$("dl").onclick = () => {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([$("preview").innerHTML], { type: "image/svg+xml" }));
+  a.download = ($("fname").value || "badge") + ".svg";
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+draw();
+</script>
+</body>
+</html>
