@@ -639,7 +639,7 @@ $("sendrepo").onclick = async () => {
   if (!path || path.endsWith("/")) path += ($("fname").value || "badge") + ".svg";
   ok("sending…");
   try {
-    const svg = $("preview").innerHTML;
+    const { svg, hot } = await svgForUpload(false);
     const url = `https://api.github.com/repos/${repo}/contents/${path.split("/").map(encodeURIComponent).join("/")}`;
     const head = { "Authorization": "Bearer " + token, "Accept": "application/vnd.github+json" };
     let sha = "";
@@ -659,7 +659,7 @@ $("sendrepo").onclick = async () => {
     const alt = ($("label").value + " " + $("message").value).trim();
     const link = $("link").value;
     $("md").value = link ? `[![${alt}](${raw})](${link})` : `![${alt}](${raw})`;
-    ok("badge committed, markdown points at the raw file (main branch)");
+    ok(hot ? "badge committed but the icon stayed hotlinked, re-upload it with the icon Upload button" : "badge committed with icon embedded, markdown points at the raw file (main branch)");
   } catch (e) { err(e && e.message ? e.message : e); }
 };
 $("dl").onclick = () => {
