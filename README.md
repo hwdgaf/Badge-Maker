@@ -2,10 +2,17 @@
 
 Design badges for Minecraft mod listings. Paste any public Modrinth mod link, style the badge, copy the markdown.
 
+![The badge designer](screenshot.png)
+
 ## Use it
 
-- Hosted: `https://hwdgaf.github.io/Badge-Maker/` once Pages is on
-- Local: download `designer.html` and double-click it. No installs, no server.
+Open `https://hwdgaf.github.io/Badge-Maker/` and:
+
+1. Paste a Modrinth mod link and wait a second while name, icon, and colors fill in.
+2. Style it: layout, colors, fonts, borders, positions. The preview updates live.
+3. Download the SVG and copy the markdown into the listing.
+
+No installs, no account, no server. The page runs entirely in the browser.
 
 ## What it does
 
