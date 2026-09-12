@@ -42,6 +42,7 @@ Both stay in the page memory only and are never saved anywhere.
 - `designer.html` — the app, one file
 - `make-badge.py` — command-line twin, Python 3 with stdlib only
 - `designer-link.txt` — the whole app as one paste-in-address-bar link
+- `samples/` — ready-made badges with copy-paste markdown
 
 ## License
 
