@@ -29,6 +29,14 @@ No installs, no account, no server. The page runs entirely in the browser.
 
 Modrinth autofill, webfont search, hotlinked icons. Everything else runs offline. The eyedropper needs Chrome or Edge.
 
+## Tokens for one-click publishing
+
+Both stay in the page memory only and are never saved anywhere.
+
+**GitHub token for Send to repo.** Profile photo, Settings, Developer settings at the bottom left, Personal access tokens, Tokens (classic), Generate new token (classic). Name it `badge-designer`, set an expiry, check the **repo** box for Contents write access. Copy it immediately, it shows exactly once.
+
+**Modrinth token for Send to gallery.** Avatar, Settings, Personal access tokens (`modrinth.com/settings/pats`). Create one with project write scope and copy it.
+
 ## Files
 
 - `designer.html` — the app, one file
