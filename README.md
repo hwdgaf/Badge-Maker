@@ -4,7 +4,7 @@ Design badges for Minecraft mod listings. Paste any public Modrinth mod link, st
 
 ## Use it
 
-- Hosted: `https://<you>.github.io/<repo>/badges/designer.html` once Pages is on
+- Hosted: `https://hwdgaf.github.io/Badge-Maker/` once Pages is on
 - Local: download `designer.html` and double-click it. No installs, no server.
 
 ## What it does
