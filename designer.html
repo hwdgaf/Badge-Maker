@@ -49,7 +49,7 @@ SOFTWARE.
 </style>
 </head>
 <body>
-<h1>Exotherm badge designer <span id="ver" style="font-size:12px;color:#888">v34</span></h1>
+<h1>Exotherm badge designer <span id="ver" style="font-size:12px;color:#888">v35</span></h1>
 
 <fieldset>
   <legend>Content</legend>
@@ -465,9 +465,38 @@ async function urlAlive(url) {
   try { const r = await fetch(url); return r.ok; } catch {}
   return false;
 }
+function loadImage(url, cors) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    if (cors) img.crossOrigin = "anonymous";
+    img.onload = () => res(img);
+    img.onerror = rej;
+    img.src = url;
+  });
+}
+async function pageImage(url) {
+  try {
+    const r = await fetch(url);
+    if (!(r.headers.get("content-type") || "").includes("text/html")) return "";
+    const t = await r.text();
+    const m = t.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)/i)
+      || t.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:image["']/i)
+      || t.match(/<meta[^>]*name=["']twitter:image["'][^>]*content=["']([^"']+)/i);
+    if (!m) return "";
+    try { return new URL(m[1], url).href; } catch { return ""; }
+  } catch { return ""; }
+}
 async function resolveIcon(url) {
-  if (!url || url.startsWith("data:")) return url;
-  if (await urlAlive(url)) return url;
+  if (!url) return url;
+  if (url.startsWith("data:image/")) return url;
+  if (await urlAlive(url)) {
+    const og = await pageImage(url);
+    if (og && og !== url) {
+      if (await urlAlive(og)) return og;
+      return "";
+    }
+    return url;
+  }
   const m = url.match(/cdn\.modrinth\.com\/data\/([A-Za-z0-9]+)\//);
   if (m) {
     try {
@@ -495,10 +524,13 @@ async function inheritColorsAsync() {
       $("msg").textContent = "dead icon link swapped for the working one";
     }
   }
-  const img = new Image();
-  img.crossOrigin = "anonymous";
-  img.onload = () => {
-    try {
+  let img = null;
+  try { img = await loadImage(url, true); }
+  catch {
+    try { img = await loadImage(url, false); draw(); $("msg").style.color = "#e88"; $("msg").textContent = "icon shows but the host blocks color reading, eyedropper or the Upload button instead"; return; }
+    catch { $("msg").style.color = "#e88"; $("msg").textContent = "icon image would not load, check the URL"; return; }
+  }
+  try {
       const S = 48, c = document.createElement("canvas");
       c.width = S; c.height = S;
       const ctx = c.getContext("2d", { willReadFrequently: true });
@@ -539,12 +571,14 @@ async function inheritColorsAsync() {
       $("msg").textContent = "colors sampled from icon";
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => draw());
 draw();
-    } catch (e) { $("msg").style.color = "#e88"; $("msg").textContent = "color read failed: " + (e && e.message ? e.message : e); }
-  };
-  img.onerror = () => { $("msg").style.color = "#e88"; $("msg").textContent = "icon image would not load, check the URL"; };
-  img.src = url;
-}
+    } catch (e) {
+      const t = (e && e.message ? e.message : e) + "";
+      $("msg").style.color = "#e88";
+      $("msg").textContent = /taint|SecurityError/i.test(t) ? "icon host blocks color reading, eyedropper or the Upload button instead" : "color read failed: " + t;
+    }
+  }
 $("sample").onclick = () => inheritColors();
+
 
 let fillTimer;
 function pastedLink() {
