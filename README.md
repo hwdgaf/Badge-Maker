@@ -21,6 +21,7 @@ No installs, no account, no server. The page runs entirely in the browser.
 - 2000+ open webfonts plus your own uploads, embedded on request
 - Bar and card layouts, gradients, borders, per-line type controls, live preview
 - Outputs a standalone SVG plus link-wrapped markdown
+- Sends the badge straight to the Modrinth project gallery, no download needed
 
 ## Needs internet for
 

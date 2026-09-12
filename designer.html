@@ -48,7 +48,7 @@ SOFTWARE.
 </style>
 </head>
 <body>
-<h1>Exotherm badge designer <span id="ver" style="font-size:12px;color:#888">v32</span></h1>
+<h1>Exotherm badge designer <span id="ver" style="font-size:12px;color:#888">v33</span></h1>
 
 <fieldset>
   <legend>Content</legend>
@@ -139,10 +139,17 @@ SOFTWARE.
 <label>Markdown</label>
 <textarea id="md" readonly></textarea><br>
 <button id="copymd">Copy markdown</button>
-<button id="copydm">Copy data markdown</button>
 <button id="copysvg">Copy SVG</button>
 <button id="dl">Download SVG</button>
 <div style="font-size:12px;color:#999">Markdown needs a hosted file. Download the SVG, put it online, set SVG base URL above, then Copy markdown. Copy SVG is source code for pasting into HTML.</div>
+
+<fieldset>
+  <legend>Publish to Modrinth</legend>
+  <label>API token</label><input type="password" id="mrtoken" placeholder="personal token, memory only" style="width:340px"><br>
+  <span style="font-size:12px;color:#999">Create one at modrinth.com/settings/pats with project write scope. It goes to Modrinth and nowhere else, and is never saved.</span><br>
+  <button id="sendgal">Send badge to project gallery</button>
+  <span style="font-size:12px;color:#999">uploads the preview as SVG, then fills the markdown with its CDN link</span>
+</fieldset>
 
 <script>
 const $ = id => document.getElementById(id);
@@ -537,15 +544,57 @@ async function autofill() {
   } catch { $("msg").style.color = "#e88"; $("msg").textContent = "no public Modrinth project called '" + slug + "'"; }
 }
 
+async function svgForUpload() {
+  let s = $("preview").innerHTML, hot = false;
+  const m = s.match(/<image[^>]*href="([^"]+)"/);
+  if (m && m[1].startsWith("http")) {
+    try {
+      const url = m[1].replace(/&amp;/g, "&");
+      const b = await (await fetch(url)).blob();
+      const du = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(b); });
+      s = s.replace(m[1], du);
+    } catch { hot = true; }
+  }
+  return { svg: s, hot };
+}
+$("sendgal").onclick = async () => {
+  const err = t => { $("msg").style.color = "#e88"; $("msg").textContent = t; };
+  const ok = t => { $("msg").style.color = "#8e8"; $("msg").textContent = t; };
+  const token = $("mrtoken").value.trim();
+  let slug = $("slug").value.trim();
+  const lm = slug.match(/modrinth\.com\/mod\/([^/?#]+)/);
+  if (lm) slug = lm[1];
+  if (!slug) { err("paste the target project slug or link first"); return; }
+  if (!token) { err("paste a Modrinth token first (settings, personal tokens)"); return; }
+  const title = $("fname").value || "badge";
+  ok("uploading…");
+  try {
+    const { svg, hot } = await svgForUpload();
+    const up = await fetch(`https://api.modrinth.com/v2/project/${slug}/gallery?ext=svg&featured=false&title=${encodeURIComponent(title)}`, {
+      method: "POST",
+      headers: { "Authorization": token, "Content-Type": "image/svg+xml" },
+      body: svg
+    });
+    if (!up.ok) {
+      if (up.status === 401 || up.status === 403) throw new Error("token rejected, check it and its project write scope");
+      throw new Error("upload failed: " + up.status);
+    }
+    let cdn = "";
+    try { const j = await up.json(); cdn = j.url || j.raw_url || ""; } catch {}
+    if (!cdn) {
+      const p = await (await fetch("https://api.modrinth.com/v2/project/" + slug)).json();
+      const hits = ((p.gallery) || []).filter(g => g.title === title);
+      if (hits.length) cdn = hits[hits.length - 1].url;
+    }
+    if (!cdn) throw new Error("uploaded but no URL came back, check the project gallery");
+    const alt = ($("label").value + " " + $("message").value).trim();
+    const link = $("link").value || ("https://modrinth.com/mod/" + slug);
+    $("md").value = `[![${alt}](${cdn})](${link})`;
+    ok(hot ? "live on the Modrinth CDN, markdown updated (icon stayed hotlinked)" : "live on the Modrinth CDN, markdown updated");
+  } catch (e) { err(e && e.message ? e.message : e); }
+};
 $("darkprev").onclick = () => $("preview").classList.toggle("dark");
 $("copymd").onclick = () => navigator.clipboard.writeText($("md").value);
-$("copydm").onclick = () => {
-  const alt = ($("label").value + " " + $("message").value).trim();
-  const uri = "data:image/svg+xml," + encodeURIComponent($("preview").innerHTML);
-  navigator.clipboard.writeText(`[![${alt}](${uri})](${$("link").value})`);
-  $("msg").style.color = "#8e8";
-  $("msg").textContent = "data markdown copied, paste it in a draft listing to test";
-};
 $("copysvg").onclick = () => navigator.clipboard.writeText($("preview").innerHTML);
 $("dl").onclick = () => {
   const a = document.createElement("a");
