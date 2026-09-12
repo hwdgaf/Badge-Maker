@@ -23,6 +23,7 @@ No installs, no account, no server. The page runs entirely in the browser.
 - Floating live preview, eyedropper on every color, icon and text nudging
 - Auto width, height, and max-width trimming with ellipsis
 - Outputs a standalone SVG plus link-wrapped markdown
+- Sends the badge straight to the Modrinth project gallery or any GitHub repo, no download needed
 
 ## Needs internet for
 

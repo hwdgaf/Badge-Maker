@@ -152,6 +152,16 @@ SOFTWARE.
   <span style="font-size:12px;color:#999">uploads the preview as SVG, then fills the markdown with its CDN link</span>
 </fieldset>
 
+<fieldset>
+  <legend>Send to repo</legend>
+  <label>Repo</label><input type="text" id="ghrepo" placeholder="owner/name" style="width:220px">
+  <label>Path</label><input type="text" id="ghpath" value="badges/" style="width:220px"><br>
+  <label>API token</label><input type="password" id="ghtoken" placeholder="personal token, memory only" style="width:340px"><br>
+  <span style="font-size:12px;color:#999">Needs Contents write access. It goes to GitHub and nowhere else, and is never saved.</span><br>
+  <button id="sendrepo">Send badge to repo</button>
+  <span style="font-size:12px;color:#999">commits the preview SVG, then fills the markdown with its raw link</span>
+</fieldset>
+
 <script>
 const $ = id => document.getElementById(id);
 let lastBg = $("bg").value;
@@ -599,6 +609,44 @@ $("sendgal").onclick = async () => {
   } catch (e) { err(e && e.message ? e.message : e); }
 };
 $("darkprev").onclick = () => $("preview").classList.toggle("dark");
+function b64(s) {
+  const b = new Blob([s], { type: "image/svg+xml;charset=utf-8" });
+  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1]); r.onerror = rej; r.readAsDataURL(b); });
+}
+$("sendrepo").onclick = async () => {
+  const err = t => { $("msg").style.color = "#e88"; $("msg").textContent = t; };
+  const ok = t => { $("msg").style.color = "#8e8"; $("msg").textContent = t; };
+  const token = $("ghtoken").value.trim();
+  const repo = $("ghrepo").value.trim().replace(/^https?:\/\/github\.com\//, "").replace(/\/$/, "");
+  let path = $("ghpath").value.trim().replace(/^\/+/, "");
+  if (!repo || !/^[^/]+\/[^/]+$/.test(repo)) { err("repo must look like owner/name"); return; }
+  if (!token) { err("paste a GitHub token first (settings, developer settings)"); return; }
+  if (!path || path.endsWith("/")) path += ($("fname").value || "badge") + ".svg";
+  ok("sending…");
+  try {
+    const svg = $("preview").innerHTML;
+    const url = `https://api.github.com/repos/${repo}/contents/${path.split("/").map(encodeURIComponent).join("/")}`;
+    const head = { "Authorization": "Bearer " + token, "Accept": "application/vnd.github+json" };
+    let sha = "";
+    try {
+      const cur = await (await fetch(url, { headers: head })).json();
+      if (cur.sha) sha = cur.sha;
+    } catch {}
+    const body = { message: "badge: " + (($("fname").value || "badge")), content: await b64(svg) };
+    if (sha) body.sha = sha;
+    const put = await fetch(url, { method: "PUT", headers: { ...head, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (!put.ok) {
+      if (put.status === 401 || put.status === 403) throw new Error("token rejected, check it and its Contents write scope");
+      if (put.status === 404) throw new Error("repo or path not found, check both");
+      throw new Error("send failed: " + put.status);
+    }
+    const raw = `https://raw.githubusercontent.com/${repo}/main/${path.split("/").map(encodeURIComponent).join("/")}`;
+    const alt = ($("label").value + " " + $("message").value).trim();
+    const link = $("link").value;
+    $("md").value = link ? `[![${alt}](${raw})](${link})` : `![${alt}](${raw})`;
+    ok("badge committed, markdown points at the raw file (main branch)");
+  } catch (e) { err(e && e.message ? e.message : e); }
+};
 $("dl").onclick = () => {
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([$("preview").innerHTML], { type: "image/svg+xml" }));
