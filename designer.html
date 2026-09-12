@@ -140,10 +140,8 @@ SOFTWARE.
 <div id="preview"></div>
 <label>Markdown</label>
 <textarea id="md" readonly></textarea><br>
-<button id="copymd">Copy markdown</button>
-<button id="copysvg">Copy SVG</button>
 <button id="dl">Download SVG</button>
-<div style="font-size:12px;color:#999">Markdown needs a hosted file. Download the SVG, put it online, set SVG base URL above, then Copy markdown. Copy SVG is source code for pasting into HTML.</div>
+<div style="font-size:12px;color:#999">Markdown needs a hosted file. Download the SVG, put it online, set SVG base URL above, then copy the Markdown box by hand.</div>
 
 <fieldset>
   <legend>Publish to Modrinth</legend>
@@ -600,8 +598,6 @@ $("sendgal").onclick = async () => {
   } catch (e) { err(e && e.message ? e.message : e); }
 };
 $("darkprev").onclick = () => $("preview").classList.toggle("dark");
-$("copymd").onclick = () => navigator.clipboard.writeText($("md").value);
-$("copysvg").onclick = () => navigator.clipboard.writeText($("preview").innerHTML);
 $("dl").onclick = () => {
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([$("preview").innerHTML], { type: "image/svg+xml" }));
