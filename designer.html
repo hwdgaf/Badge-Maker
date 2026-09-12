@@ -141,6 +141,7 @@ SOFTWARE.
 <label>Markdown</label>
 <textarea id="md" readonly></textarea><br>
 <button id="dl">Download SVG</button>
+<button id="dlpng">Download PNG</button>
 <div style="font-size:12px;color:#999">Markdown needs a hosted file. Download the SVG, put it online, set SVG base URL above, then copy the Markdown box by hand.</div>
 
 <fieldset>
@@ -604,6 +605,38 @@ $("dl").onclick = () => {
   a.download = ($("fname").value || "badge") + ".svg";
   a.click();
   URL.revokeObjectURL(a.href);
+};
+$("dlpng").onclick = async () => {
+  const err = t => { $("msg").style.color = "#e88"; $("msg").textContent = t; };
+  try {
+    let s = $("preview").innerHTML, iconHot = false;
+    const m = s.match(/<image[^>]*href="([^"]+)"/);
+    if (m && m[1].startsWith("http")) {
+      try {
+        const b = await (await fetch(m[1].replace(/&amp;/g, "&"))).blob();
+        const du = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(b); });
+        s = s.replace(m[1], du);
+      } catch { iconHot = true; }
+    }
+    const dim = s.match(/^<svg[^>]*width="([\d.]+)"[^>]*height="([\d.]+)"/);
+    if (!dim) throw new Error("badge has no size");
+    const scale = 2;
+    const img = new Image();
+    const obj = URL.createObjectURL(new Blob([s], { type: "image/svg+xml;charset=utf-8" }));
+    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = obj; });
+    const c = document.createElement("canvas");
+    c.width = Math.ceil(parseFloat(dim[1]) * scale);
+    c.height = Math.ceil(parseFloat(dim[2]) * scale);
+    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+    URL.revokeObjectURL(obj);
+    const blob = await new Promise((res, rej) => c.toBlob(b => b ? res(b) : rej(new Error("rasterizer refused, embed the icon and fonts first")), "image/png"));
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = ($("fname").value || "badge") + ".png";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    if (iconHot) { $("msg").style.color = "#e88"; $("msg").textContent = "PNG saved without the icon, it would not embed"; }
+  } catch (e) { err("PNG export failed: " + (e && e.message ? e.message : e)); }
 };
 draw();
 </script>
