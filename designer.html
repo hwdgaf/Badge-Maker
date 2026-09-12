@@ -55,6 +55,7 @@ SOFTWARE.
   <legend>Content</legend>
   <label>Link target</label><input type="text" id="link" value="" placeholder="https://modrinth.com/mod/your-mod"><br>
   <label>Icon URL</label><input type="text" id="icon" size="60" placeholder="https://.../icon.png">
+  <input type="file" id="iconfile" accept="image/*" style="max-width:200px">
   <button id="sample">Sample colors</button><br>
   <label>Icon size</label><input type="checkbox" id="autoicon"> auto
   <input type="range" id="iconsize" min="12" max="96" step="1" value="50"><span class="val" id="iconsizev">50</span><br>
@@ -165,6 +166,18 @@ SOFTWARE.
 <script>
 const $ = id => document.getElementById(id);
 let lastBg = $("bg").value;
+let customIcon = "";
+$("iconfile").onchange = () => {
+  const f = $("iconfile").files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    customIcon = r.result;
+    $("icon").value = "";
+    draw();
+  };
+  r.readAsDataURL(f);
+};
 const customFonts = {};
 $("fontfile").onchange = () => {
   const f = $("fontfile").files[0];
@@ -233,7 +246,7 @@ pair("bg", "bghex"); pair("bcol", "bcolhex"); pair("mcol", "mcolhex"); pair("lco
 
 function draw() {
   const label = $("label").value, message = $("message").value;
-  const icon = $("icon").value.trim();
+  const icon = customIcon || $("icon").value.trim();
   const sliderH = +$("height").value;
   const autoH = $("autoh").checked;
   const mFont = $("mfont").value, mSize = +$("msize").value, mCol = $("mcol").value.slice(1);
@@ -365,7 +378,7 @@ document.querySelectorAll("input,select").forEach(el => el.addEventListener("inp
 
 // dominant colors out of the icon URL straight into the vertical gradient
 let iconTimer;
-$("icon").addEventListener("input", () => { clearTimeout(iconTimer); iconTimer = setTimeout(inheritColors, 600); });
+$("icon").addEventListener("input", () => { customIcon = ""; clearTimeout(iconTimer); iconTimer = setTimeout(inheritColors, 600); });
 $("vivid").addEventListener("input", () => { if ($("icon").value.trim()) inheritColors(); });
 let fontCatalog = null, wfontTimer;
 async function webfontSearch() {
@@ -448,7 +461,7 @@ function renderCands(cands) {
   });
 }
 function inheritColors() {
-  const url = $("icon").value.trim();
+  const url = customIcon || $("icon").value.trim();
   if (!url) { $("msg").style.color = "#e88"; $("msg").textContent = "icon URL is empty, nothing to sample"; return; }
   const img = new Image();
   img.crossOrigin = "anonymous";
@@ -548,6 +561,7 @@ async function autofill() {
     if (!$("link").value) $("link").value = "https://modrinth.com/mod/" + slug;
     const cur = $("icon").value.trim();
     if (!cur || cur.includes("cdn.modrinth.com")) {
+      customIcon = "";
       $("icon").value = p.icon_url || (p.id ? `https://cdn.modrinth.com/data/${p.id}/icon.png` : "");
       inheritColors();
     } else if (cur) {
@@ -559,7 +573,7 @@ async function autofill() {
   } catch { $("msg").style.color = "#e88"; $("msg").textContent = "no public Modrinth project called '" + slug + "'"; }
 }
 
-async function svgForUpload() {
+async function svgForUpload(strict) {
   let s = $("preview").innerHTML, hot = false;
   const m = s.match(/<image[^>]*href="([^"]+)"/);
   if (m && m[1].startsWith("http")) {
@@ -570,6 +584,7 @@ async function svgForUpload() {
       s = s.replace(m[1], du);
     } catch { hot = true; }
   }
+  if (strict && hot) throw new Error("icon would not embed, upload the icon file with the button instead");
   return { svg: s, hot };
 }
 $("sendgal").onclick = async () => {
@@ -584,7 +599,7 @@ $("sendgal").onclick = async () => {
   const title = $("fname").value || "badge";
   ok("uploading…");
   try {
-    const { svg, hot } = await svgForUpload();
+    const { svg, hot } = await svgForUpload(true);
     const up = await fetch(`https://api.modrinth.com/v2/project/${slug}/gallery?ext=svg&featured=false&title=${encodeURIComponent(title)}`, {
       method: "POST",
       headers: { "Authorization": token, "Content-Type": "image/svg+xml" },
@@ -657,15 +672,7 @@ $("dl").onclick = () => {
 $("dlpng").onclick = async () => {
   const err = t => { $("msg").style.color = "#e88"; $("msg").textContent = t; };
   try {
-    let s = $("preview").innerHTML, iconHot = false;
-    const m = s.match(/<image[^>]*href="([^"]+)"/);
-    if (m && m[1].startsWith("http")) {
-      try {
-        const b = await (await fetch(m[1].replace(/&amp;/g, "&"))).blob();
-        const du = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(b); });
-        s = s.replace(m[1], du);
-      } catch { iconHot = true; }
-    }
+    const { svg: s, hot: iconHot } = await svgForUpload(false);
     const dim = s.match(/^<svg[^>]*width="([\d.]+)"[^>]*height="([\d.]+)"/);
     if (!dim) throw new Error("badge has no size");
     const scale = 2;
