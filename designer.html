@@ -49,7 +49,7 @@ SOFTWARE.
 </style>
 </head>
 <body>
-<h1>Exotherm badge designer <span id="ver" style="font-size:12px;color:#888">v33</span></h1>
+<h1>Exotherm badge designer <span id="ver" style="font-size:12px;color:#888">v34</span></h1>
 
 <fieldset>
   <legend>Content</legend>
@@ -460,9 +460,41 @@ function renderCands(cands) {
     box.appendChild(d);
   });
 }
+async function urlAlive(url) {
+  try { const r = await fetch(url, { method: "HEAD" }); if (r.ok) return true; } catch {}
+  try { const r = await fetch(url); return r.ok; } catch {}
+  return false;
+}
+async function resolveIcon(url) {
+  if (!url || url.startsWith("data:")) return url;
+  if (await urlAlive(url)) return url;
+  const m = url.match(/cdn\.modrinth\.com\/data\/([A-Za-z0-9]+)\//);
+  if (m) {
+    try {
+      const p = await (await fetch("https://api.modrinth.com/v2/project/" + m[1])).json();
+      if (p.icon_url && p.icon_url !== url && await urlAlive(p.icon_url)) return p.icon_url;
+    } catch {}
+    const alias = `https://cdn.modrinth.com/data/${m[1]}/icon.png`;
+    if (alias !== url && await urlAlive(alias)) return alias;
+  }
+  return "";
+}
 function inheritColors() {
-  const url = customIcon || $("icon").value.trim();
+  inheritColorsAsync();
+}
+async function inheritColorsAsync() {
+  let url = customIcon || $("icon").value.trim();
   if (!url) { $("msg").style.color = "#e88"; $("msg").textContent = "icon URL is empty, nothing to sample"; return; }
+  if (!customIcon) {
+    const fixed = await resolveIcon(url);
+    if (!fixed) { $("msg").style.color = "#e88"; $("msg").textContent = "icon link is dead and no working replacement found"; return; }
+    if (fixed !== url) {
+      url = fixed;
+      $("icon").value = fixed;
+      $("msg").style.color = "#8e8";
+      $("msg").textContent = "dead icon link swapped for the working one";
+    }
+  }
   const img = new Image();
   img.crossOrigin = "anonymous";
   img.onload = () => {
