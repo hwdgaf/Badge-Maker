@@ -12,12 +12,12 @@ Usage:
 Common options:
     --icon URL --link URL --slug SLUG [--field version|downloads|followers]
     --mc 26.2 --loader fabric --layout bar|card --out badges --name NAME
-    --bg HEX [--gradient FROM,TO] [--grad-dir vertical|horizontal]
-    --border WIDTH,COLOR --radius N --height N (0=auto) --width N (0=auto)
+    --bg HEX [--gradient FROM,TO] [--no-gradient] [--grad-dir vertical|horizontal]
+    --border WIDTH,COLOR (empty color stays 25% lighter than bg) --radius N --height N (0=auto) --width N (0=auto)
     --maxw N (0=off) --icon-size N (0=auto)
     --m-font F --m-size N --m-color HEX [--m-bold] [--m-italic]
     --l-font F --l-size N --l-color HEX [--l-bold] [--l-italic]
-    --stroke COLOR,WIDTH
+    --stroke COLOR,WIDTH [--no-shadow]
 """
 
 import json
@@ -50,6 +50,19 @@ def human(n):
 
 def lum(hexv):
     return 0.2126 * hexv[0] + 0.7152 * hexv[1] + 0.0722 * hexv[2]
+
+
+def rel(hexv):
+    s = []
+    for x in hexv:
+        x /= 255
+        s.append(x / 12.92 if x <= 0.03928 else ((x + 0.055) / 1.055) ** 2.4)
+    return 0.2126 * s[0] + 0.7152 * s[1] + 0.0722 * s[2]
+
+
+def contrast(a, b):
+    x, y = rel(a), rel(b)
+    return (max(x, y) + 0.05) / (min(x, y) + 0.05)
 
 
 def shade(hexv, t):
@@ -141,7 +154,7 @@ def main(raw):
     label, message = o["label"], o["message"]
     msize, lsize = float(o["m-size"]), float(o["l-size"])
     bw_raw, bcol_raw = (o["border"] + ",").split(",")[:2]
-    bw, bcol = float(bw_raw or 0), (bcol_raw or "000000").lstrip("#")
+    bw = float(bw_raw or 0)
     radius = float(o["radius"])
     card = o["layout"] == "card"
     pad, gap = 10, 10
@@ -222,7 +235,15 @@ def main(raw):
         svg_h = H
 
     bgc = tohex(clamp_fill(parsehex(o["bg"])))
+    if "--border" in raw and bcol_raw:
+        bcol = bcol_raw.lstrip("#")
+    else:
+        v = parsehex(bgc)
+        bcol = tohex([round(min(255, c + (255 - c) * 0.25)) for c in v]).lstrip("#")
     grad = [p.strip().lstrip("#") for p in o["gradient"].split(",") if p.strip()] if o["gradient"] else []
+    if not grad and "--no-gradient" not in raw:
+        v = parsehex(bgc)
+        grad = [bgc.lstrip("#"), tohex([round(c * 0.75) for c in v]).lstrip("#")]
     gA = tohex(clamp_fill(parsehex(grad[0]))) if len(grad) > 0 else bgc
     gB = tohex(clamp_fill(parsehex(grad[1]))) if len(grad) > 1 else bgc
     horiz = o["grad-dir"] == "horizontal"
@@ -231,32 +252,59 @@ def main(raw):
             f'<stop offset="1" stop-color="{gB}"/></linearGradient></defs>') if grad else ""
     use_grad = bool(grad)
 
-    # text follows the background: exact inverse when readable, else black/white
-    def text_for(bg_hex, explicit):
+    # text comes from the gradient: the ramp (lightened lighter stop or darkened darker stop)
+    # that reads best on the actual fill wins, preferring the smallest readable shift
+    def text_for(bg_hex, explicit, stops, grad_on):
         if explicit:
             return explicit.lstrip("#")
-        v = parsehex(bg_hex)
-        inv = [255 - c for c in v]
+        nums = sorted((parsehex(s) for s in stops), key=lum)
+        surfaces = nums if grad_on else [parsehex(bg_hex)]
 
-        def rl(c):
-            s = []
-            for x in c:
-                x /= 255
-                s.append(x / 12.92 if x <= 0.03928 else ((x + 0.055) / 1.055) ** 2.4)
-            return 0.2126 * s[0] + 0.7152 * s[1] + 0.0722 * s[2]
+        def min_c(tc):
+            return min(contrast(s, tc) for s in surfaces)
 
-        a, b = rl(v), rl(inv)
-        ratio = (max(a, b) + 0.05) / (min(a, b) + 0.05)
-        if ratio >= 3:
-            return tohex(inv).lstrip("#")
-        return "1a1a1a" if lum(v) > 150 else "ffffff"
+        def try_ramp(base, target):
+            tc, m = base, min_c(base)
+            best, first = (tc, m), (tc, m) if m >= 4.5 else None
+            t = 0.0
+            while t < 1:
+                t = min(1.0, t + 0.05)
+                cand = [c + (u - c) * t for c, u in zip(base, target)]
+                m = min_c(cand)
+                if m > best[1]:
+                    best = (cand, m)
+                if first is None and m >= 4.5:
+                    first = (cand, m)
+            return first or best
 
-    mCol = text_for(bgc, o["m-color"] if "--m-color" in raw else "")
-    lCol = text_for(bgc, o["l-color"] if "--l-color" in raw else "")
+        light = try_ramp(nums[-1], [255, 255, 255])
+        dark = try_ramp(nums[0], [0, 0, 0])
+        tc = (light if light[1] >= dark[1] else dark)[0]
+        return tohex([round(max(0, min(255, c))) for c in tc]).lstrip("#")
+
+    mCol = text_for(bgc, o["m-color"] if "--m-color" in raw else "", [gA, gB], use_grad)
+    lCol = text_for(bgc, o["l-color"] if "--l-color" in raw else "", [gA, gB], use_grad)
     scol_raw, sw_raw = (o["stroke"] + ",").split(",")[:2]
     sw = float(sw_raw or 0)
     st = f' paint-order="stroke" stroke="#{scol_raw.lstrip("#")}" stroke-width="{sw:g}"' if sw > 0 else ""
     alt = escape(f"{label} {message}".strip())
+
+    def inv(hexv):
+        return tohex([255 - c for c in parsehex(hexv)]).lstrip("#")
+
+    sh_on = "--no-shadow" not in raw
+
+    def sh_f(fid, size, col):
+        o = max(1, round(size * 0.08))
+        return (f'<filter id="{fid}" x="-40%" y="-40%" width="180%" height="180%">'
+                f'<feDropShadow dx="{o}" dy="{o}" stdDeviation="{o}" flood-color="#{inv(col)}"/></filter>')
+
+    def txt(x, y, anchor, f, s, c, b, i, content, fid):
+        filt = f' filter="url(#{fid})"' if sh_on and fid else ""
+        return f'<text x="{x:.1f}" y="{y:.1f}"{anchor}{fa(f, s, c, b, i)}{st}{filt}>{content}</text>'
+
+    if sh_on:
+        defs += sh_f("dshM", msize, mCol) + sh_f("dshL", lsize, lCol)
 
     parts = [f'<rect x="{bw / 2:g}" y="{bw / 2:g}" width="{total - bw:g}" height="{svg_h - bw:g}"'
              f' rx="{radius:g}" fill="{"url(#g)" if use_grad else bgc}"']
@@ -268,12 +316,12 @@ def main(raw):
                          f" href={quoteattr(icon)} alt={quoteattr(f'{lab} {msg}'.strip())}/>")
             y += side + gap
         if msg:
-            parts.append(f'<text x="{total / 2:g}" y="{y + msize:.1f}" text-anchor="middle"'
-                         f"{fa(o['m-font'], msize, mCol, o['m-bold'], o['m-italic'])}{st}>{escape(msg)}</text>")
+            parts.append(txt(total / 2, y + msize, ' text-anchor="middle"',
+                             o["m-font"], msize, mCol, o["m-bold"], o["m-italic"], escape(msg), "dshM"))
             y += msize * 1.25 + 4
         if lab:
-            parts.append(f'<text x="{total / 2:g}" y="{y + lsize:.1f}" text-anchor="middle"'
-                         f"{fa(o['l-font'], lsize, lCol, o['l-bold'], o['l-italic'])}{st}>{escape(lab)}</text>")
+            parts.append(txt(total / 2, y + lsize, ' text-anchor="middle"',
+                             o["l-font"], lsize, lCol, o["l-bold"], o["l-italic"], escape(lab), "dshL"))
     else:
         x = pad + bw + side + (gap if side and (lab or msg) else 0)
         if side:
@@ -281,13 +329,14 @@ def main(raw):
                          f" href={quoteattr(icon)} alt={quoteattr(f'{lab} {msg}'.strip())}/>")
         ty = H / 2
         if lab:
-            parts.append(f'<text x="{x:.1f}" y="{ty + lsize * 0.35:.1f}"'
-                         f"{fa(o['l-font'], lsize, lCol, o['l-bold'], o['l-italic'])}{st}>{escape(lab)}</text>")
+            parts.append(txt(x, ty + lsize * 0.35, "",
+                             o["l-font"], lsize, lCol, o["l-bold"], o["l-italic"], escape(lab), "dshL"))
             x += wL(lab) + gap
         if msg:
-            parts.append(f'<text x="{x:.1f}" y="{ty + msize * 0.35:.1f}"'
-                         f"{fa(o['m-font'], msize, mCol, o['m-bold'], o['m-italic'])}{st}>{escape(msg)}</text>")
-    svg = (f'<svg xmlns="http://www.w3.org/2000/svg" width="{total:g}" height="{svg_h:g}" role="img"'
+            parts.append(txt(x, ty + msize * 0.35, "",
+                             o["m-font"], msize, mCol, o["m-bold"], o["m-italic"], escape(msg), "dshM"))
+    svg = (f'<svg xmlns="http://www.w3.org/2000/svg" width="{total:g}" height="{svg_h:g}"'
+           f' viewBox="0 0 {total:g} {svg_h:g}" role="img"'
            f' aria-label="{escape(f"{label}: {message}".strip(": "))}">{defs}<g>{"".join(parts)}</g></svg>')
 
     out = Path(o["out"])
